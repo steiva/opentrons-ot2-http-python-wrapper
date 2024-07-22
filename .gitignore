@@ -8,6 +8,7 @@ __pycache__/
 
 # Distribution / packaging
 .Python
+folchlab_specific
 build/
 develop-eggs/
 dist/
