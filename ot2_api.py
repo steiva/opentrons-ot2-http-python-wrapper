@@ -212,7 +212,34 @@ class OpentronsAPI():
         }
 
         command_payload = json.dumps(command_dict)
-        r = self.post(url = self.commands_url, headers= self.HEADERS,
+        r = self.post(url = self.commands_url, headers = self.HEADERS,
+                      params={"waitUntilComplete": True}, data = command_payload)
+        if verbose == True:
+            self.display_responce(r)
+
+    def move_relative(self, axis: str, distance: float, verbose: bool = False) -> None:
+        if self.pipette_id is None:
+            print('Pipette not loaded. Load pipette first.')
+            return
+        
+        if axis not in ('x', 'y', 'z'):
+            print('Axis argument must be either x, y or z ...')
+            return
+        
+        command_dict = {
+            "data": {
+                "commandType": "moveRelative",
+                "params": {
+                    "axis": axis,
+                    "distance": distance,
+                    "pipetteId": self.pipette_id
+                },
+                "intent": "setup"
+            }
+        }
+
+        command_payload = json.dumps(command_dict)
+        r = self.post(url = self.commands_url, headers = self.HEADERS,
                       params={"waitUntilComplete": True}, data = command_payload)
         if verbose == True:
             self.display_responce(r)
