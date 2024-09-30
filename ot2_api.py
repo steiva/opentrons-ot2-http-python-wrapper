@@ -15,6 +15,7 @@ class OpentronsAPI():
         self.pipette_id = None
         self.commands_url = None # None because commands are associated with a run which needs to be initiated first.
         self.protocol_id = None
+        self.labware_dct = {str(i): None for i in range(1, 12)}
 
     def post(self, url: str, headers: dict, params: dict = None, data: dict = None, files: list = None) -> requests.models.Response:
         """Post method to post to HTTP API.
@@ -218,6 +219,13 @@ class OpentronsAPI():
             self.display_responce(r)
 
     def move_relative(self, axis: str, distance: float, verbose: bool = False) -> None:
+        """Method to move the robot's end-effector (mount tip or pipette tip if it is attached) a relative distance along an axis.
+
+        Args:
+            axis (str): Should be 'x', 'y' or 'z'.
+            distance (float): Distance to move along the axis in mm.
+            verbose (bool, optional): Print the responce from server or not. Defaults to False.
+        """        
         if self.pipette_id is None:
             print('Pipette not loaded. Load pipette first.')
             return
@@ -244,7 +252,7 @@ class OpentronsAPI():
         if verbose == True:
             self.display_responce(r)
 
-    def get_position(self, verbose = True) -> dict:
+    def get_position(self, verbose: bool = True) -> dict:
         """Get current position (mount tip or pipette tip if attached). Method is a bit hacky, as it rely's
            on the savePosition command which is used for calibration.
 
@@ -277,6 +285,101 @@ class OpentronsAPI():
         if verbose:
             print(coordinates)
         return coordinates
+    
+    def load_labware(self, TIP_RACK: str, slot_name: int, verbose: bool = True) -> None:
+
+        if self.commands_url is None:
+            print('Pipette not loaded. Load pipette first.')
+            return
+        
+        command_dict = {
+            "data": {
+                "commandType": "loadLabware",
+                "params": {
+                    "location": {"slotName": str(slot_name)},
+                    "loadName": TIP_RACK,
+                    "namespace": "opentrons",
+                    "version": 1
+                },
+                "intent": "setup"
+            }
+        }
+
+        command_payload = json.dumps(command_dict)
+        r = self.post(url = self.commands_url, headers = self.HEADERS,
+                  params={"waitUntilComplete": True}, data = command_payload)
+        
+        r_dict = json.loads(r.text)
+        labware_id = r_dict["data"]["result"]["labwareId"]
+        self.labware_dct[str(slot_name)] = labware_id
+        if verbose == True:
+            print(f"Labware ID:\n{labware_id}\n")
+
+    def pick_up_tip(self, labware_id: str, well_name: str, xyz_offset: tuple = (0,0,0), verbose: bool = False) -> None:
+        """Method to pick up a tip from a well in a tip rack.
+
+        Args:
+            labware_id (str): unique ID of the labware produced in the load_labware method.
+            well_name (str): coordinate of the tip, e.g. 'A1'.
+            xyz_offset (tuple, optional): xyz offset. Defaults to (0,0,0).
+            verbose (bool, optional): Print the responce from server or not. Defaults to False.
+        """        
+
+        if self.pipette_id is None or self.commands_url is None:
+            print('Pipette not loaded. Load pipette first.')
+            return
+        
+        command_dict = {
+            "data": {
+                "commandType": "pickUpTip",
+                "params": {
+                    "labwareId": labware_id,
+                    "wellName": well_name,
+                    "wellLocation": {
+                        "origin": "top", 
+                        "offset": {"x": xyz_offset[0], "y": xyz_offset[1], "z": xyz_offset[2]}
+                    },
+                    "pipetteId": self.pipette_id
+                },
+                "intent": "setup"
+            }
+        }
+
+        command_payload = json.dumps(command_dict)
+        r = self.post(url = self.commands_url, headers = self.HEADERS,
+                  params={"waitUntilComplete": True}, data = command_payload)
+        
+        if verbose == True:
+            self.display_responce(r)
+
+    def drop_tip(self, labware_id: str, well_name: str, xyz_offset: tuple = (0,0,0), verbose: bool = False) -> None:
+
+        if self.pipette_id is None or self.commands_url is None:
+            print('Pipette not loaded. Load pipette first.')
+            return
+        
+        command_dict = {
+            "data": {
+                "commandType": "dropTip",
+                "params": {
+                    "labwareId": labware_id,
+                    "wellName": well_name,
+                    "wellLocation": {
+                        "origin": "top",
+                        "offset": {"x": xyz_offset[0], "y": xyz_offset[1], "z": xyz_offset[2]}
+                    },
+                    "pipetteId": self.pipette_id
+                },
+                "intent": "setup"
+            }
+        }
+
+        command_payload = json.dumps(command_dict)
+        r = self.post(url = self.commands_url, headers = self.HEADERS,
+                  params={"waitUntilComplete": True}, data = command_payload)
+        
+        if verbose == True:
+            self.display_responce(r)
 
     def get_all_runs(self) -> requests.models.Response:
         """Get a responce from robot's server with the information of the last 20 runs.
