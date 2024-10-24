@@ -62,7 +62,7 @@ class OpentronsAPI():
         json_formatted_str = json.dumps(json.loads(responce.text), indent = 2)
         print(f"Request status:\n{responce}\n{json_formatted_str}")
     
-    def toggle_lights(self, verbose: bool = False) -> None:
+    def toggle_lights(self, verbose: bool = False) -> requests.models.Response:
         """Method to toggle the OT-2's top LED strips on/off.
 
         Args:
@@ -72,11 +72,12 @@ class OpentronsAPI():
         current_status = json.loads(current_status.text)
         is_on = current_status['on']
         responce_data = json.dumps({"on": not(is_on)})
-        toggle_responce = self.post(url = self.lights_url, headers=self.HEADERS, data=responce_data)
+        r = self.post(url = self.lights_url, headers=self.HEADERS, data=responce_data)
         if verbose:
-            self.display_responce(toggle_responce)
+            self.display_responce(r)
+        return r
 
-    def create_run(self, protocol_id: str = None, verbose: bool = True) -> None:
+    def create_run(self, protocol_id: str = None, verbose: bool = True) -> requests.models.Response:
         """Method to create a run for the OT-2. A run needs to be created before any commands 
            like movement, aspiration, etc. are executed, but not for basic commands such as 
            light toggle or homing the robot.  
@@ -90,12 +91,21 @@ class OpentronsAPI():
             r = self.post(self.runs_url, self.HEADERS, data = protocol_id_payload)
         else:
             r = self.post(self.runs_url, self.HEADERS)
-        run_id = json.loads(r.text)['data']['id']
-        self.run_id = run_id
+        
+        resp_dict = json.loads(r.text)
+        if 'data' not in resp_dict:
+            print('Error creating run...')
+        else:
+            if 'id' not in resp_dict['data']:
+                print('Error creating run...')
+            else:
+                run_id = json.loads(r.text)['data']['id']
+                self.run_id = run_id
         if verbose:
             self.display_responce(r)
+        return r
 
-    def home_robot(self, verbose: bool = True) -> None:
+    def home_robot(self, verbose: bool = True) -> requests.models.Response:
         """Method to home the robot's gantry. Needs to be performed at least once before operation. 
 
         Args:
@@ -106,8 +116,9 @@ class OpentronsAPI():
         r = self.post(url = self.home_url, headers=self.HEADERS, data = command_payload)
         if verbose:
             self.display_responce(r)
+        return r
 
-    def load_pipette(self, mount: str = 'left', verbose: bool = True) -> None:
+    def load_pipette(self, mount: str = 'left', verbose: bool = True) -> requests.models.Response:
         """Method that provides the currently attached pipette with a unique ID. Needed to keep track of
            attached/detached pipette tips, etc.
 
@@ -137,8 +148,9 @@ class OpentronsAPI():
         
         if verbose:
             self.display_responce(r)
+        return r
 
-    def upload_protocol(self, PROTOCOL_FILE: str, LABWARE_FILE: str = None, verbose: bool = True) -> None:
+    def upload_protocol(self, PROTOCOL_FILE: str, LABWARE_FILE: str = None, verbose: bool = True) -> requests.models.Response:
         """Method that allows to upload a protocol file (as well as custom labware) to the onboard
            RaspberryPi of the robot. The custom labware has to be uploaded together with a protocol file.
 
@@ -164,8 +176,9 @@ class OpentronsAPI():
         protocol_file_payload.close()
         if LABWARE_FILE:
             labware_file_payload.close()
+        return r
 
-    def run_protocol(self) -> None:
+    def run_protocol(self) -> requests.models.Response:
         """Method for execution of a run labeled as the current one. 
            TODO: reconsider if a run_id should be fed in as a argument instead.
         """        
@@ -178,10 +191,11 @@ class OpentronsAPI():
         r = requests.post(
             url=actions_url,
             headers=self.HEADERS,
-            data=action_payload
-	)
+            data=action_payload)
         
-    def move_to_coordinates(self, coordinates: tuple, min_z_height: float = 20.0, force_direct: bool = False, verbose: bool = True) -> None:
+        return r
+        
+    def move_to_coordinates(self, coordinates: tuple, min_z_height: float = 20.0, force_direct: bool = False, verbose: bool = True) -> requests.models.Response:
         """Method to move the robot's end-effector (mount tip or pipette tip if it is attached) to a coordinate position.
 
         Args:
@@ -218,7 +232,9 @@ class OpentronsAPI():
         if verbose == True:
             self.display_responce(r)
 
-    def move_relative(self, axis: str, distance: float, verbose: bool = False) -> None:
+        return r
+
+    def move_relative(self, axis: str, distance: float, verbose: bool = False) -> requests.models.Response:
         """Method to move the robot's end-effector (mount tip or pipette tip if it is attached) a relative distance along an axis.
 
         Args:
@@ -252,6 +268,9 @@ class OpentronsAPI():
         if verbose == True:
             self.display_responce(r)
 
+        return r
+
+
     def get_position(self, verbose: bool = True) -> dict:
         """Get current position (mount tip or pipette tip if attached). Method is a bit hacky, as it rely's
            on the savePosition command which is used for calibration.
@@ -284,9 +303,9 @@ class OpentronsAPI():
         coordinates = r_dict['data']['result']['position']
         if verbose:
             print(coordinates)
-        return coordinates
+        return coordinates, r
     
-    def load_labware(self, TIP_RACK: str, slot_name: int, verbose: bool = True) -> None:
+    def load_labware(self, TIP_RACK: str, slot_name: int, verbose: bool = True) -> requests.models.Response:
 
         if self.commands_url is None:
             print('Pipette not loaded. Load pipette first.')
@@ -314,8 +333,9 @@ class OpentronsAPI():
         self.labware_dct[str(slot_name)] = labware_id
         if verbose == True:
             print(f"Labware ID:\n{labware_id}\n")
+        return r
 
-    def pick_up_tip(self, labware_id: str, well_name: str, xyz_offset: tuple = (0,0,0), verbose: bool = False) -> None:
+    def pick_up_tip(self, labware_id: str, well_name: str, xyz_offset: tuple = (0,0,0), verbose: bool = False) -> requests.models.Response:
         """Method to pick up a tip from a well in a tip rack.
 
         Args:
@@ -351,8 +371,9 @@ class OpentronsAPI():
         
         if verbose == True:
             self.display_responce(r)
+        return r
 
-    def drop_tip(self, labware_id: str, well_name: str, xyz_offset: tuple = (0,0,0), verbose: bool = False) -> None:
+    def drop_tip(self, labware_id: str, well_name: str, xyz_offset: tuple = (0,0,0), verbose: bool = False) -> requests.models.Response:
 
         if self.pipette_id is None or self.commands_url is None:
             print('Pipette not loaded. Load pipette first.')
@@ -380,6 +401,7 @@ class OpentronsAPI():
         
         if verbose == True:
             self.display_responce(r)
+        return r
 
     def get_all_runs(self) -> requests.models.Response:
         """Get a responce from robot's server with the information of the last 20 runs.
