@@ -305,7 +305,7 @@ class OpentronsAPI():
             print(coordinates)
         return coordinates, r
     
-    def load_labware(self, TIP_RACK: str, slot_name: int, verbose: bool = True) -> requests.models.Response:
+    def load_labware(self, TIP_RACK: str, slot_name: int, namespace: str = 'opentrons', verbose: bool = True) -> requests.models.Response:
 
         if self.commands_url is None:
             print('Pipette not loaded. Load pipette first.')
@@ -317,7 +317,7 @@ class OpentronsAPI():
                 "params": {
                     "location": {"slotName": str(slot_name)},
                     "loadName": TIP_RACK,
-                    "namespace": "opentrons",
+                    "namespace": namespace,
                     "version": 1
                 },
                 "intent": "setup"
