@@ -1,7 +1,21 @@
 import requests
 import json
+import functools
 
-class OpentronsAPI():
+
+
+class Decorators():
+    def check_error(func):
+        """Decorator to check if the HTTP request was successful or not. If not, an exception is raised."""
+        @functools.wraps(func)
+        def wrapper(self, *args, **kwargs):
+            r = func(self, *args, **kwargs)
+            if r.status_code not in range(200, 300):
+                raise Exception(r.text)
+            return r
+        return wrapper
+
+class OpentronsAPI(Decorators):
 
     def __init__(self) -> None:
         self.ROBOT_IP = "169.254.241.245"
@@ -17,6 +31,8 @@ class OpentronsAPI():
         self.protocol_id = None
         self.labware_dct = {str(i): None for i in range(1, 12)}
 
+
+    @Decorators.check_error
     def post(self, url: str, headers: dict, params: dict = None, data: dict = None, files: list = None) -> requests.models.Response:
         """Post method to post to HTTP API.
 
@@ -38,6 +54,7 @@ class OpentronsAPI():
             files=files)
         return r
     
+    @Decorators.check_error
     def get(self, url: str, headers: dict) -> requests.models.Response:
         """Get method to query the HTTP API.
 
@@ -374,7 +391,17 @@ class OpentronsAPI():
         return r
 
     def drop_tip(self, labware_id: str, well_name: str, xyz_offset: tuple = (0,0,0), verbose: bool = False) -> requests.models.Response:
+        """Method to drop a tip into a well in a tip rack.
 
+        Args:
+            labware_id (str): unique ID of the labware produced in the load_labware method.
+            well_name (str): coordinate of the tip, e.g. 'A1'.
+            xyz_offset (tuple, optional): xyz offset. Defaults to (0,0,0).
+            verbose (bool, optional): Print the responce from server or not. Defaults to False.
+
+        Returns:
+            requests.models.Response: responce object from the robot's server.
+        """
         if self.pipette_id is None or self.commands_url is None:
             print('Pipette not loaded. Load pipette first.')
             return
@@ -402,6 +429,78 @@ class OpentronsAPI():
         if verbose == True:
             self.display_responce(r)
         return r
+
+    def aspirate_in_place(self, flow_rate: int = 25, volume: int = 25, verbose: bool = False) -> requests.models.Response:
+        """Method to aspirate a volume of liquid at the current position of the robot.
+
+        Args:
+            flow_rate (int, optional): The flowrate for the pump (uL/s?). Defaults to 25.
+            volume (int, optional): Volume to be aspirated (uL). Defaults to 25.
+            verbose (bool, optional): Print the responce from server or not. Defaults to False.
+
+        Returns:
+            requests.models.Response: responce object from the robot's server.
+        """
+        if self.pipette_id is None or self.commands_url is None:
+            print('Pipette not loaded. Load pipette first.')
+            return
+
+        command_dict = {
+            "data": {
+                "commandType": "aspirateInPlace",
+                "params": {
+                    "flowRate": flow_rate,
+                    "volume": volume,
+                    "pipetteId": self.pipette_id
+                },
+                "intent": "setup"
+            }
+        }
+
+        command_payload = json.dumps(command_dict)
+        r = self.post(url = self.commands_url, headers = self.HEADERS,
+                    params={"waitUntilComplete": True}, data = command_payload)
+
+        if verbose == True:
+            self.display_responce(r)
+        return r
+
+    def dispense_in_place(self, flow_rate: int = 25, volume: int = 25, verbose: bool = False) -> requests.models.Response:
+        """Method to dispense a volume of liquid at the current position of the robot.
+
+        Args:
+            flow_rate (int, optional): The flowrate for the pump (uL/s?). Defaults to 25.
+            volume (int, optional): Volume to be dispenced (uL). Defaults to 25.
+            verbose (bool, optional): Print the responce from server or not. Defaults to False.
+
+        Returns:
+            requests.models.Response: responce object from the robot's server.
+        """
+        if self.pipette_id is None or self.commands_url is None:
+            print('Pipette not loaded. Load pipette first.')
+            return
+
+        command_dict = {
+                    "data": {
+                        "commandType": "dispenseInPlace",
+                        "params": {
+                            "flowRate": flow_rate,
+                            "volume": volume,
+                            "pipetteId": self.pipette_id
+                            #TODO: optional Pushout volume should be tested 
+                        },
+                        "intent": "setup"
+                    }
+                }
+
+        command_payload = json.dumps(command_dict)
+        r = self.post(url = self.commands_url, headers = self.HEADERS,
+                    params={"waitUntilComplete": True}, data = command_payload)
+        
+        if verbose == True:
+            self.display_responce(r)
+        return r
+
 
     def get_all_runs(self) -> requests.models.Response:
         """Get a responce from robot's server with the information of the last 20 runs.
