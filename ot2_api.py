@@ -464,7 +464,7 @@ class OpentronsAPI(Decorators):
             self.display_responce(r)
         return r
     
-    def dispence(self, labware_id: str,
+    def dispense(self, labware_id: str,
                        well_name: str, 
                        well_location: str = 'top', 
                        volume: int = 25, 
@@ -597,6 +597,7 @@ class OpentronsAPI(Decorators):
                 current_run_id = run['id']
                 current_run_status = run['status']
                 self.run_id = current_run_id
+                self.commands_url = f"{self.runs_url}/{self.run_id}/commands"
 
                 if run['pipettes']:
                     self.pipette_id = run['pipettes'][0]['id']
