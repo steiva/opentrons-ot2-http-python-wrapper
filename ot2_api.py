@@ -430,6 +430,76 @@ class OpentronsAPI(Decorators):
             self.display_responce(r)
         return r
 
+    def aspirate(self, labware_id: str,
+                       well_name: str, 
+                       well_location: str = 'top', 
+                       volume: int = 25, 
+                       flow_rate: int = 25, 
+                       verbose: bool = False) -> requests.models.Response:
+        
+        if self.pipette_id is None or self.commands_url is None:
+            print('Pipette not loaded. Load pipette first.')
+            return
+        
+        command_dict = {
+            "data": {
+                "commandType": "aspirate",
+                "params": {
+                    "labwareId": labware_id,
+                    "wellName": well_name,
+                    "wellLocation": {"origin": well_location},
+                    "flowRate": flow_rate,
+                    "volume": volume,
+                    "pipetteId": self.pipette_id
+                },
+                "intent": "setup"
+            }
+        }
+
+        command_payload = json.dumps(command_dict)
+        r = self.post(url = self.commands_url, headers = self.HEADERS,
+                    params={"waitUntilComplete": True}, data = command_payload)
+
+        if verbose == True:
+            self.display_responce(r)
+        return r
+    
+    def dispence(self, labware_id: str,
+                       well_name: str, 
+                       well_location: str = 'top', 
+                       volume: int = 25, 
+                       flow_rate: int = 25,
+                       pushout: int = 0, 
+                       verbose: bool = False) -> requests.models.Response:
+        
+        if self.pipette_id is None or self.commands_url is None:
+            print('Pipette not loaded. Load pipette first.')
+            return
+        
+        command_dict = {
+            "data": {
+                "commandType": "dispence",
+                "params": {
+                    "labwareId": labware_id,
+                    "wellName": well_name,
+                    "wellLocation": {"origin": well_location},
+                    "flowRate": flow_rate,
+                    "volume": volume,
+                    "pipetteId": self.pipette_id,
+                    "pushout": pushout
+                },
+                "intent": "setup"
+            }
+        }
+
+        command_payload = json.dumps(command_dict)
+        r = self.post(url = self.commands_url, headers = self.HEADERS,
+                    params={"waitUntilComplete": True}, data = command_payload)
+
+        if verbose == True:
+            self.display_responce(r)
+        return r
+        
     def aspirate_in_place(self, flow_rate: int = 25, volume: int = 25, verbose: bool = False) -> requests.models.Response:
         """Method to aspirate a volume of liquid at the current position of the robot.
 
