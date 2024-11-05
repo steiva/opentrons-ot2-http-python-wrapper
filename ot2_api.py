@@ -598,6 +598,16 @@ class OpentronsAPI(Decorators):
                 current_run_status = run['status']
                 self.run_id = current_run_id
 
+                if run['pipettes']:
+                    self.pipette_id = run['pipettes'][0]['id']
+
+                if run['labware']:
+                    for labware in run['labware']:
+                        labware_id = labware['id']
+                        location = labware['location']
+                        if type(location) == dict:
+                            self.labware_dct[location['slotName']] = labware_id
+
         print(f'Total number of runs: {all_runs_json['meta']['totalLength']}')
         print(f'Current run ID: {current_run_id}')
         print(f'Current run status: {current_run_status}')
