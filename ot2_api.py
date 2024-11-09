@@ -1,6 +1,7 @@
 import requests
 import json
 import functools
+from typing import Union
 
 class Decorators():
     def check_error(func):
@@ -432,6 +433,44 @@ class OpentronsAPI(Decorators):
 
         if verbose == True:
             print(f"Labware ID:\n{labware_id}\n")
+        return r
+    
+    @Decorators.require_ids(["run_id"])
+    def move_labware(self, labware_id: str, new_location: Union[str, int], strategy: str = 'manualMoveWithoutPause', verbose: bool = False) -> requests.models.Response:
+        """Method to move a labware to a new location on the robot, or move labware off the deck.
+
+        Args:
+            labware_id (str): unique ID of the labware produced in the load_labware method.
+            new_location (Union[str, int]): new location for the labware. Can be a slot name or 'offDeck'.
+            strategy (str, optional): how the labware is moved. Defaults to 'manualMoveWithoutPause'.
+            verbose (bool, optional): print the responce from server or not. Defaults to False.
+
+        Returns:
+            requests.models.Response: responce object from the robot's server.
+        """
+        if type(new_location) == int:
+            new_location = {"slotName": str(new_location)}
+
+        assert strategy in ['usingGripper','manualMoveWithoutPause', 'manualMoveWithPause'], "Invalid strategy argument..."
+        command_dict = {
+            "data": {
+                "commandType": "moveLabware",
+                "params": {
+                    "labwareId": labware_id,
+                    "newLocation": new_location,
+                    "strategy": strategy
+                },
+                "intent": "setup"
+            }
+        }
+
+        command_payload = json.dumps(command_dict)
+        r = self.post("commands", headers = self.HEADERS,
+                  params={"waitUntilComplete": True}, data = command_payload)
+        
+        if verbose == True:
+            self.display_responce(r)
+
         return r
 
     @Decorators.require_ids(["run_id", "pipette_id"])
