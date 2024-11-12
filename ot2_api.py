@@ -273,12 +273,12 @@ class OpentronsAPI(Decorators):
         return r
 
     @Decorators.require_ids(["run_id"])
-    def run_protocol(self) -> requests.models.Response:
-        """Method for execution of a run labeled as the current one."""        
-        payload = json.dumps({"data":{"actionType": "play"}})
-
+    def control_run(self, action: str) -> requests.models.Response:
+        """Method for execution of a run labeled as the current one."""
+        
+        assert action in ["play", "pause", "stop", "resume-from-recovery"], "Invalid action argument..."
+        payload = json.dumps({"data":{"actionType": action}})
         r = self.post("actions", headers=self.HEADERS, data=payload)
-
         return r
 
     @Decorators.require_ids(["run_id", "pipette_id"])
