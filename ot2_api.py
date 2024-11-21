@@ -611,7 +611,7 @@ class OpentronsAPI(Decorators):
             well_location (str, optional): location within the well, e.g. 'top', 'bottom', 'center'. Defaults to 'top'.
             volume (int, optional): volume to dispense, uL. Defaults to 25.
             flow_rate (int, optional): flow rate, ul/sec. Defaults to 25.
-            pushout (int, optional): Pushout volume after dispensing, uL. Defaults to 0.
+            pushout (int, optional): pushout volume after dispensing, uL (does not work as expected). Defaults to 0.
             verbose (bool, optional): print the responce from server or not. Defaults to False.
 
         Returns:
@@ -627,7 +627,7 @@ class OpentronsAPI(Decorators):
                     "flowRate": flow_rate,
                     "volume": volume,
                     "pipetteId": self.pipette_id,
-                    "pushout": pushout
+                    "pushOut": pushout
                 },
                 "intent": "setup"
             }
@@ -677,13 +677,15 @@ class OpentronsAPI(Decorators):
     
     @Decorators.require_ids(["run_id", "pipette_id"])
     def dispense_in_place(self, volume: int = 25, 
-                                flow_rate: int = 25, 
+                                flow_rate: int = 25,
+                                pushout: int = 0, 
                                 verbose: bool = False) -> requests.models.Response:
         """Method to dispense a volume of liquid at the current position of the robot.
 
         Args:
-            flow_rate (int, optional): The flowrate for the pump (uL/s?). Defaults to 25.
+            flow_rate (int, optional): The flowrate for the pump (uL/s). Defaults to 25.
             volume (int, optional): Volume to be dispenced (uL). Defaults to 25.
+            pushout (int, optional): Pushout volume after dispensing, uL (does not work as expected). Defaults to 0.
             verbose (bool, optional): Print the responce from server or not. Defaults to False.
 
         Returns:
@@ -695,8 +697,8 @@ class OpentronsAPI(Decorators):
                         "params": {
                             "flowRate": flow_rate,
                             "volume": volume,
-                            "pipetteId": self.pipette_id
-                            #TODO: optional Pushout volume should be tested 
+                            "pipetteId": self.pipette_id,
+                            "pushOut": pushout
                         },
                         "intent": "setup"
                     }
@@ -709,5 +711,64 @@ class OpentronsAPI(Decorators):
         if verbose == True:
             self.display_responce(r)
         return r
+    
+    @Decorators.require_ids(["run_id", "pipette_id"])
+    def blow_out(self, labware_id: str, well_name: str,  well_location: str = 'top', flow_rate: int = 25) -> requests.models.Response:
+        """Method to blow out liquid from the pipette tip into a well in a labware.
+
+        Args:
+            labware_id (str): labware ID associated with the labware.
+            well_name (str): well name, e.g. 'A1'.
+            well_location (str, optional): location within the well, e.g. 'top', 'bottom', 'center'. Defaults to 'top'.
+            flow_rate (int, optional): the flowrate for the pump (uL/s). Defaults to 25.
+
+        Returns:
+            requests.models.Response: responce object from the robot's server.
+        """
+        command_dict = {
+                    "data": {
+                        "commandType": "blowout",
+                        "params": {
+                            "labwareId": labware_id,
+                            "wellName": well_name,
+                            "wellLocation": {"origin": well_location},
+                            "flowRate": flow_rate,
+                            "pipetteId": self.pipette_id,
+                        },
+                        "intent": "setup"
+                    }
+                }
+
+        command_payload = json.dumps(command_dict)
+        r = self.post("commands", headers = self.HEADERS,
+                    params={"waitUntilComplete": True}, data = command_payload)
+        
+        return r
 
 
+    @Decorators.require_ids(["run_id", "pipette_id"])
+    def blow_out_in_place(self, flow_rate: int = 25) -> requests.models.Response:
+        """Method to blow out liquid from the pipette tip at the current position of the robot.
+
+        Args:
+            flow_rate (int, optional): the flowrate for the pump (uL/s). Defaults to 25.
+
+        Returns:
+            requests.models.Response: responce object from the robot's server.
+        """        
+        command_dict = {
+            "data": {
+                "commandType": "blowOutInPlace",
+                "params": {
+                    "flowRate": flow_rate,
+                    "pipetteId": self.pipette_id
+                },
+                "intent": "setup"
+            }
+        }
+
+        command_payload = json.dumps(command_dict)
+        r = self.post("commands", headers = self.HEADERS,
+                    params={"waitUntilComplete": True}, data = command_payload)
+        
+        return r
