@@ -553,6 +553,35 @@ class OpentronsAPI(Decorators):
         return r
 
     @Decorators.require_ids(["run_id", "pipette_id"])
+    def drop_tip_in_place(self, verbose: bool = False) -> requests.models.Response:
+        """Method to drop a tip in place.
+
+        Args:
+            verbose (bool, optional): Print the responce from server or not. Defaults to False.
+
+        Returns:
+            requests.models.Response: responce object from the robot's server.
+        """
+        
+        command_dict = {
+            "data": {
+                "commandType": "dropTipInPlace",
+                "params": {
+                    "pipetteId": self.pipette_id
+                },
+                "intent": "setup"
+            }
+        }
+
+        command_payload = json.dumps(command_dict)
+        r = self.post("commands", headers = self.HEADERS,
+                  params={"waitUntilComplete": True}, data = command_payload)
+        
+        if verbose == True:
+            self.display_responce(r)
+        return r
+
+    @Decorators.require_ids(["run_id", "pipette_id"])
     def aspirate(self, labware_id: str, 
                        well_name: str,  
                        well_location: str = 'top',  
