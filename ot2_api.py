@@ -585,6 +585,8 @@ class OpentronsAPI(Decorators):
     def aspirate(self, labware_id: str, 
                        well_name: str,  
                        well_location: str = 'top',  
+                       offset: tuple = (0,0,0),
+                       volume_offset: int = 0,
                        volume: int = 25,  
                        flow_rate: int = 25,  
                        verbose: bool = False) -> requests.models.Response:
@@ -600,14 +602,20 @@ class OpentronsAPI(Decorators):
 
         Returns:
             requests.models.Response: responce object from the robot's server.
-        """        
+        """
+        well_location_dict = {"origin": well_location,
+                             "offset": {"x": offset[0], 
+                                        "y": offset[1], 
+                                        "z": offset[2]},
+                             "volumeOffset": volume_offset}
+
         command_dict = {
             "data": {
                 "commandType": "aspirate",
                 "params": {
                     "labwareId": labware_id,
                     "wellName": well_name,
-                    "wellLocation": {"origin": well_location},
+                    "wellLocation": well_location_dict,
                     "flowRate": flow_rate,
                     "volume": volume,
                     "pipetteId": self.pipette_id
