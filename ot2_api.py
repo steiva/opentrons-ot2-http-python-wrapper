@@ -319,6 +319,47 @@ class OpentronsAPI(Decorators):
             self.display_responce(r)
 
         return r
+    
+    @Decorators.require_ids(["run_id", "pipette_id"])
+    def move_to_well(self, labware_id: str, 
+                            well_name: str,  
+                            well_location: str = 'top',  
+                            offset: tuple = (0,0,0),
+                            volume_offset: int = 0,  
+                            verbose: bool = False,
+                            force_direct: bool = False,
+                            speed: int = None,
+                            minimum_z_height: float = None) -> requests.models.Response:
+         
+        well_location_dict = {"origin": well_location,
+                             "offset": {"x": offset[0], 
+                                        "y": offset[1], 
+                                        "z": offset[2]},
+                             "volumeOffset": volume_offset}
+
+        command_dict = {
+            "data": {
+                "commandType": "aspirate",
+                "params": {
+                    "labwareId": labware_id,
+                    "wellName": well_name,
+                    "wellLocation": well_location_dict,
+                    "pipetteId": self.pipette_id,
+                    "forceDirect": force_direct,
+                    "speed": speed,
+                    "minimumZHeight": minimum_z_height
+                },
+                "intent": "setup"
+            }
+        }
+
+        command_payload = json.dumps(command_dict)
+        r = self.post("commands", headers = self.HEADERS,
+                    params={"waitUntilComplete": True}, data = command_payload)
+
+        if verbose == True:
+            self.display_responce(r)
+        return r
 
     @Decorators.require_ids(["run_id", "pipette_id"])
     def move_relative(self, axis: str, 
