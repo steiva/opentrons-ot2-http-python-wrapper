@@ -339,7 +339,7 @@ class OpentronsAPI(Decorators):
 
         command_dict = {
             "data": {
-                "commandType": "aspirate",
+                "commandType": "moveToWell",
                 "params": {
                     "labwareId": labware_id,
                     "wellName": well_name,
