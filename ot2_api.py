@@ -329,7 +329,7 @@ class OpentronsAPI(Decorators):
                             verbose: bool = False,
                             force_direct: bool = False,
                             speed: int = None,
-                            minimum_z_height: float = None) -> requests.models.Response:
+                            min_z_height: float = None) -> requests.models.Response:
          
         well_location_dict = {"origin": well_location,
                              "offset": {"x": offset[0], 
@@ -347,7 +347,7 @@ class OpentronsAPI(Decorators):
                     "pipetteId": self.pipette_id,
                     "forceDirect": force_direct,
                     "speed": speed,
-                    "minimumZHeight": minimum_z_height
+                    "minimumZHeight": min_z_height
                 },
                 "intent": "setup"
             }
