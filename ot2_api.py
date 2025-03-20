@@ -676,7 +676,9 @@ class OpentronsAPI(Decorators):
     @Decorators.require_ids(["run_id", "pipette_id"])
     def dispense(self, labware_id: str, 
                        well_name: str,  
-                       well_location: str = 'top',  
+                       well_location: str = 'top',
+                       offset: tuple = (0,0,0),
+                       volume_offset: int = 0,  
                        volume: int = 25,  
                        flow_rate: int = 25, 
                        pushout: int = 0,  
@@ -690,18 +692,24 @@ class OpentronsAPI(Decorators):
             volume (int, optional): volume to dispense, uL. Defaults to 25.
             flow_rate (int, optional): flow rate, ul/sec. Defaults to 25.
             pushout (int, optional): pushout volume after dispensing, uL (does not work as expected). Defaults to 0.
-            verbose (bool, optional): print the responce from server or not. Defaults to False.
+            verbose (bool, optional): print the response from server or not. Defaults to False.
 
         Returns:
             requests.models.Response: responce object from the robot's server.
-        """    
+        """ 
+        well_location_dict = {"origin": well_location,
+                        "offset": {"x": offset[0], 
+                                "y": offset[1], 
+                                "z": offset[2]},
+                        "volumeOffset": volume_offset}
+
         command_dict = {
             "data": {
                 "commandType": "dispense",
                 "params": {
                     "labwareId": labware_id,
                     "wellName": well_name,
-                    "wellLocation": {"origin": well_location},
+                    "wellLocation": well_location_dict,
                     "flowRate": flow_rate,
                     "volume": volume,
                     "pipetteId": self.pipette_id,
