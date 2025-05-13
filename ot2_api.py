@@ -31,6 +31,7 @@ class OpentronsAPI(Decorators):
 
     ENDPOINTS = {
         "runs": "/runs",
+        "labwareOffsets": "/labwareOffsets",
         "lights": "/robot/lights",
         "home": "/robot/home",
         "protocols": "/protocols",
@@ -150,6 +151,7 @@ class OpentronsAPI(Decorators):
                 self.run_id = run_id
                 self.ENDPOINTS['commands'] = f"/runs/{run_id}/commands"
                 self.ENDPOINTS['actions'] = f"/runs/{run_id}/actions"
+                self.ENDPOINTS['runLabwareOffsets'] = f"/runs/{run_id}/labware_offsets"
         if verbose:
             self.display_responce(r)
         return r
@@ -181,6 +183,7 @@ class OpentronsAPI(Decorators):
                 self.run_id = current_run_id
                 self.ENDPOINTS['commands'] = f"/runs/{self.run_id}/commands"
                 self.ENDPOINTS['actions'] = f"/runs/{self.run_id}/actions"
+                self.ENDPOINTS['runLabwareOffsets'] = f"/runs/{self.run_id}/labware_offsets"
 
                 if run['pipettes']:
                     self.pipette_id = run['pipettes'][0]['id']
@@ -474,6 +477,40 @@ class OpentronsAPI(Decorators):
 
         if verbose == True:
             print(f"Labware ID:\n{labware_id}\n")
+        return r
+    
+    @Decorators.require_ids(["run_id"])
+    def add_labware_offset_to_run(self, definitionUri: str, slot_name: int, offset: tuple[float, float, float]) -> requests.models.Response:
+        """Method to add a labware offset to the current run. The offset is given in mm.
+
+        Args:
+            definitionUri (str): Definition URI of the labware. Format: namespace/loadname/version. 
+            For example: 'opentrons/opentrons_96_tiprack_300ul/1'.
+            slot_name (int): Slot name where the labware is located. E.g. '1', '2', '3', etc. (OT2)
+            offset (tuple[float, float, float]): Offset in mm. Tuple of x, y, z coordinates.
+
+        Returns:
+            requests.models.Response: responce object from the robot's server.
+        """       
+        assert slot_name in range(1, 12), "Slot number must be between 1 and 11."
+        x, y, z = offset
+        data = {
+            "data": {
+                "definitionUri": definitionUri,
+                "location": {
+                    "slotName": str(slot_name)
+                },
+                "vector": {
+                "x": x,
+                "y": y,
+                "z": z
+                }
+            }
+        }
+
+        data_payload = json.dumps(data)
+        r = self.post("runLabwareOffsets", headers = self.HEADERS,
+                  params={"waitUntilComplete": True}, data = data_payload)
         return r
     
     @Decorators.require_ids(["run_id"])
