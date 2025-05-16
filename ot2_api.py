@@ -46,6 +46,7 @@ class OpentronsAPI(Decorators):
         self.pipette_id = None
         self.protocol_id = None
         self.labware_dct = {str(i): None for i in range(1, 12)}
+        self.slot_offsets = {"data":[]}
 
     def get_url(self, endpoint_key: str) -> str:
         """Construct the full URL for a given endpoint key."""
@@ -212,6 +213,30 @@ class OpentronsAPI(Decorators):
         if verbose:
             self.display_responce(r)
         return r
+    
+    def add_slot_offsets(self, slot_names: list[int], offset: tuple[float, float, float]):
+        """
+        Adds the slot offsets to the given slot names.
+        """
+        if not isinstance(slot_names, list) or not all(isinstance(s, int) for s in slot_names):
+            raise ValueError("slot_names must be a list of integers.")
+        if not isinstance(offset, tuple) or len(offset) != 3 or not all(isinstance(o, (int, float)) for o in offset):
+            raise ValueError("offset must be a tuple of 3 numbers (int or float).")
+        
+        new_offsets = {"slots": slot_names, "offset": offset}
+        for entry in self.slot_offsets["data"]:
+            if entry["slots"] == slot_names:
+                raise ValueError(f"Offsets for slots {slot_names} already exist.")
+        self.slot_offsets["data"].append(new_offsets)
+
+    def get_offset_for_slot(self, slot: int):
+        """
+        Returns the offset for a given slot if it exists in slot_offsets, else returns None.
+        """
+        for entry in self.slot_offsets["data"]:
+            if slot in entry["slots"]:
+                return entry["offset"]
+        return None
 
     @Decorators.require_ids(["run_id"])
     def load_pipette(self, mount: str = 'left', 
@@ -474,6 +499,17 @@ class OpentronsAPI(Decorators):
 
         labware_id = r_dict["data"]["result"]["labwareId"]
         self.labware_dct[str(slot_name)] = labware_id
+
+        #Check if the labware has an offset
+        current_run = self.get_run_info()[-1]
+        labware_info = next((lw for lw in current_run['labware'] if lw['id'] == labware_id), None)
+        labware_uri = labware_info['definitionUri'] if labware_info else None
+
+        #Apply the offset to the labware
+        offset_for_slot = self.get_offset_for_slot(slot_name)
+        if offset_for_slot:
+            self.add_labware_offset_to_run(labware_uri, slot_name, offset_for_slot)
+            print(f"Offset {offset_for_slot} added to run for {labware_info['loadName']} in slot {slot_name}.")
 
         if verbose == True:
             print(f"Labware ID:\n{labware_id}\n")
