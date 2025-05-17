@@ -490,6 +490,14 @@ class OpentronsAPI(Decorators):
             }
         }
 
+        offset_for_slot = self.get_offset_for_slot(slot_name)
+        if offset_for_slot:
+            labware_uri = f'{namespace}/{labware_api_name}/1'
+            self.add_labware_offset_to_run(labware_uri, slot_name, offset_for_slot)
+            print(f"Offset {offset_for_slot} added to run for {labware_api_name} in slot {slot_name}.")
+            print(f"Labware URI:\n{labware_uri}\n")
+            print("Check offset before using ...")
+
         command_payload = json.dumps(command_dict)
         r = self.post("commands", headers = self.HEADERS,
                   params={"waitUntilComplete": True}, data = command_payload)
@@ -499,17 +507,6 @@ class OpentronsAPI(Decorators):
 
         labware_id = r_dict["data"]["result"]["labwareId"]
         self.labware_dct[str(slot_name)] = labware_id
-
-        #Check if the labware has an offset
-        current_run = self.get_run_info()[-1]
-        labware_info = next((lw for lw in current_run['labware'] if lw['id'] == labware_id), None)
-        labware_uri = labware_info['definitionUri'] if labware_info else None
-
-        #Apply the offset to the labware
-        offset_for_slot = self.get_offset_for_slot(slot_name)
-        if offset_for_slot:
-            self.add_labware_offset_to_run(labware_uri, slot_name, offset_for_slot)
-            print(f"Offset {offset_for_slot} added to run for {labware_info['loadName']} in slot {slot_name}.")
 
         if verbose == True:
             print(f"Labware ID:\n{labware_id}\n")
