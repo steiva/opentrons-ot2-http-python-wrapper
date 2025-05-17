@@ -505,6 +505,9 @@ class OpentronsAPI(Decorators):
         r_dict = json.loads(r.text)
         assert r_dict['data']['status'] == 'succeeded', "Error loading labware..."
 
+        #Cheking if offset was applied to the labware
+        assert "offsetId" in r.text, "Offset was not applied to the labware..."
+
         labware_id = r_dict["data"]["result"]["labwareId"]
         self.labware_dct[str(slot_name)] = labware_id
 
