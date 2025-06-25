@@ -748,6 +748,38 @@ class OpentronsAPI(Decorators):
         return r
     
     @Decorators.require_ids(["run_id", "pipette_id"])
+    def retract_axis(self, axis: str, verbose: bool = False) -> requests.models.Response:
+        """Method to retract the pipette axis to a specified position.
+
+        Args:
+            axis (str): The axis to retract "x" "y" "leftZ" "rightZ" "leftPlunger" "rightPlunger" "extensionZ" "extensionJaw" "axis96ChannelCam".
+            verbose (bool, optional): print the responce from server or not. Defaults to False.
+
+        Returns:
+            requests.models.Response: responce object from the robot's server.
+        """
+        if axis not in ('x', 'y', 'leftZ', 'rightZ', 'leftPlunger', 'rightPlunger', 'extensionZ', 'extensionJaw', 'axis96ChannelCam'):
+            raise ValueError(f"Invalid axis: {axis}")
+
+        command_dict = {
+            "data": {
+                "commandType": "retractAxis",
+                "params": {
+                    "axis": axis
+                },
+                "intent": "setup"
+            }
+        }
+
+        command_payload = json.dumps(command_dict)
+        r = self.post("commands", headers = self.HEADERS,
+                    params={"waitUntilComplete": True}, data = command_payload)
+
+        if verbose == True:
+            self.display_responce(r)
+        return r
+
+    @Decorators.require_ids(["run_id", "pipette_id"])
     def dispense(self, labware_id: str, 
                        well_name: str,  
                        well_location: str = 'top',
