@@ -312,7 +312,8 @@ class OpentronsAPI(Decorators):
     @Decorators.require_ids(["run_id", "pipette_id"])
     def move_to_coordinates(self, coordinates: tuple, 
                                   min_z_height: float = 20.0, 
-                                  force_direct: bool = False, 
+                                  force_direct: bool = False,
+                                  speed: float = None, 
                                   verbose: bool = True) -> requests.models.Response:
         """Method to move the robot's end-effector (mount tip or pipette tip if it is attached) to a coordinate position.
 
@@ -334,6 +335,7 @@ class OpentronsAPI(Decorators):
                     "coordinates": {"x": x, "y": y, "z": z},
                     "minimumZHeight": min_z_height,
                     "forceDirect": force_direct,
+                    "speed": speed,
                     "pipetteId": self.pipette_id
                 },
                 "intent": "setup"
