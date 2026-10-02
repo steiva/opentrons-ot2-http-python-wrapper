@@ -1,7 +1,34 @@
 import requests
 import json
 import functools
-from typing import Union
+import os
+from typing import Optional, Union
+from urllib.parse import urlsplit
+
+# The robot's address when nothing else is said: the link-local address of a
+# direct cable. Over Wi-Fi, or with another robot, pass `host` or set
+# OT2_HOST; the port is the robot server's, and seldom changes.
+DEFAULT_HOST = "169.254.241.245"
+DEFAULT_PORT = 31950
+HOST_ENV = "OT2_HOST"
+
+
+def parse_address(text: str, default_port: int = DEFAULT_PORT) -> tuple[str, int]:
+    """(host, port) from what a person types: "169.254.1.2",
+    "ot2.local", "10.0.0.5:31950" or a whole "http://10.0.0.5:31950/".
+    Raises ValueError for an empty or malformed address."""
+    text = (text or "").strip()
+    if not text:
+        raise ValueError("the robot address is empty")
+    parts = urlsplit(text if "//" in text else f"//{text}")
+    host = parts.hostname
+    if not host or " " in host:
+        raise ValueError(f"not a robot address: {text!r}")
+    try:
+        port = parts.port or default_port
+    except ValueError:
+        raise ValueError(f"not a port in {text!r}") from None
+    return host, int(port)
 
 class Decorators():
     def check_error(func):
@@ -27,7 +54,9 @@ class Decorators():
         return decorator
 
 class OpentronsAPI(Decorators):
-    BASE_URL = "http://169.254.241.245:31950"
+    # Kept for code that reads it from the class; an instance uses its own
+    # address, see __init__.
+    BASE_URL = f"http://{DEFAULT_HOST}:{DEFAULT_PORT}"
 
     ENDPOINTS = {
         "runs": "/runs",
@@ -39,7 +68,21 @@ class OpentronsAPI(Decorators):
         "actions": None
     }
 
-    def __init__(self) -> None:
+    def __init__(self, host: Optional[str] = None, port: Optional[int] = None,
+                 timeout: Optional[float] = None) -> None:
+        """`host` is the robot's address - an IP or a name, optionally with
+        ":port" or as a whole URL. Without it, the OT2_HOST environment
+        variable, else DEFAULT_HOST. `port` overrides the one in `host`.
+        `timeout` (seconds) applies to every request; None waits as long as
+        the robot takes, as before."""
+        address = host or os.environ.get(HOST_ENV) or DEFAULT_HOST
+        self.host, parsed_port = parse_address(address)
+        self.port = int(port) if port is not None else parsed_port
+        self.BASE_URL = f"http://{self.host}:{self.port}"
+        self.timeout = timeout
+        # Per instance: run_id fills in the run's endpoints, and two clients
+        # of two robots must not share them through the class.
+        self.ENDPOINTS = dict(type(self).ENDPOINTS)
         self.HEADERS = {"opentrons-version": "3"}
         self.PIPETTE = "p300_single_gen2"
         self.run_id = None
@@ -79,7 +122,8 @@ class OpentronsAPI(Decorators):
             headers=headers,
             params=params,
             data=data,
-            files=files)
+            files=files,
+            timeout=self.timeout)
         return r
     
     @Decorators.check_error
@@ -98,8 +142,21 @@ class OpentronsAPI(Decorators):
 
         r = requests.get(
             url=url,
-            headers=headers)
+            headers=headers,
+            timeout=self.timeout)
         return r
+
+    def health(self, timeout: float = 5.0) -> dict:
+        """Ask the robot who it is: GET /health, which needs no run. Returns
+        the robot server's answer - name, api_version, robot_model and the
+        rest - or raises: requests.ConnectionError / Timeout when nothing
+        answers at this address, an Exception with the body otherwise.
+        For checking an address before anything else is tried."""
+        r = requests.get(f"{self.BASE_URL}/health", headers=self.HEADERS,
+                         timeout=timeout)
+        if r.status_code not in range(200, 300):
+            raise Exception(r.text)
+        return r.json()
     
     def display_responce(self, responce: requests.models.Response) -> None:
         """Simple method to print the responce from the server. The responce is formatted to be more readable.

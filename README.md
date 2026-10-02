@@ -64,7 +64,7 @@ Currently, the wrapper is not in package form. It is simple to use nonetheless.
 Potentially, any version of Python. All packages are base Python packages like `requests`, `json`, `functools`.
 
 ### Installation
-While the project is not in package form, use `git clone`, change the IP address in the `BASE_URL` in the `OpentronsAPI` class in the `ot2_api.py` file. The wrapper should be ready to use after that. 
+While the project is not in package form, use `git clone`. The robot's address is given when the client is made: `OpentronsAPI("169.254.241.245")`, `OpentronsAPI("ot2.local")` or `OpentronsAPI("10.0.0.5:31950")`. Without one, the `OT2_HOST` environment variable is used, and without that the link-local default `169.254.241.245`. `ot2_api.health()` asks the robot who it is, which is a quick way to check the address. 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 
