@@ -2,6 +2,7 @@ import requests
 import json
 import functools
 import os
+import threading
 from typing import Optional, Union
 from urllib.parse import urlsplit
 
@@ -11,6 +12,14 @@ from urllib.parse import urlsplit
 DEFAULT_HOST = "169.254.241.245"
 DEFAULT_PORT = 31950
 HOST_ENV = "OT2_HOST"
+
+
+class RobotHeld(RuntimeError):
+    """A command refused because the robot is held (`OpentronsAPI.hold`)."""
+
+    def __init__(self):
+        super().__init__("the robot is held by Stop: it takes no command "
+                         "until every job using it has stopped")
 
 
 def parse_address(text: str, default_port: int = DEFAULT_PORT) -> tuple[str, int]:
@@ -68,6 +77,9 @@ class OpentronsAPI(Decorators):
         "actions": None
     }
 
+    # What a hold refuses: everything that moves the robot or its plunger.
+    HELD = ("commands", "home")
+
     def __init__(self, host: Optional[str] = None, port: Optional[int] = None,
                  timeout: Optional[float] = None) -> None:
         """`host` is the robot's address - an IP or a name, optionally with
@@ -90,6 +102,10 @@ class OpentronsAPI(Decorators):
         self.protocol_id = None
         self.labware_dct = {str(i): None for i in range(1, 12)}
         self.slot_offsets = {"data":[]}
+        # Set, no command that moves is sent (`RobotHeld`); the one in
+        # progress finishes. The robot server's only immediate stop ends the
+        # run, so this is how a robot is stopped and its run kept.
+        self.hold = threading.Event()
 
     def get_url(self, endpoint_key: str) -> str:
         """Construct the full URL for a given endpoint key."""
@@ -115,6 +131,8 @@ class OpentronsAPI(Decorators):
         Returns:
             requests.models.Response: a responce from the robot's server.
         """        
+        if endpoint_key in self.HELD and self.hold.is_set():
+            raise RobotHeld()
         url = self.get_url(endpoint_key)
 
         r = requests.post(
