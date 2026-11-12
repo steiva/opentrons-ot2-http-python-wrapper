@@ -22,6 +22,48 @@ class RobotHeld(RuntimeError):
                          "until every job using it has stopped")
 
 
+class JobStopped(RuntimeError):
+    """A command refused because Stop was pressed during the job that sent
+    it (`stopping_on`): the command before it finished, no other is sent."""
+
+    def __init__(self):
+        super().__init__("stopped: the job's next command was not sent")
+
+
+_stop = threading.local()
+
+
+class stopping_on:
+    """While in this block, on this thread, a command that moves raises
+    `JobStopped` once `event` is set.
+
+    For a short job of several commands (a move across, down, an aspirate):
+    the first Stop ends it after the command in progress. Per thread, so a
+    run on another thread, which stops at its own safe points, is not cut
+    short by it. Blocks nest; the inner event wins until it is left.
+    """
+
+    def __init__(self, event: threading.Event):
+        self._event = event
+        self._outer = None
+
+    def __enter__(self):
+        self._outer = getattr(_stop, "event", None)
+        _stop.event = self._event
+        return self
+
+    def __exit__(self, *exc):
+        _stop.event = self._outer
+        return False
+
+
+def refuse_if_stopped() -> None:
+    """Raise `JobStopped` if this thread's job was stopped."""
+    event = getattr(_stop, "event", None)
+    if event is not None and event.is_set():
+        raise JobStopped()
+
+
 def parse_address(text: str, default_port: int = DEFAULT_PORT) -> tuple[str, int]:
     """(host, port) from what a person types: "169.254.1.2",
     "ot2.local", "10.0.0.5:31950" or a whole "http://10.0.0.5:31950/".
@@ -131,8 +173,10 @@ class OpentronsAPI(Decorators):
         Returns:
             requests.models.Response: a responce from the robot's server.
         """        
-        if endpoint_key in self.HELD and self.hold.is_set():
-            raise RobotHeld()
+        if endpoint_key in self.HELD:
+            if self.hold.is_set():
+                raise RobotHeld()
+            refuse_if_stopped()
         url = self.get_url(endpoint_key)
 
         r = requests.post(
