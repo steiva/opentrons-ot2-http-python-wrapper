@@ -14,6 +14,42 @@ DEFAULT_PORT = 31950
 HOST_ENV = "OT2_HOST"
 
 
+# TCP keep-alive on every connection to the robot: a robot that stops
+# answering in the middle of a command (cable pulled, frozen) ends the wait
+# with a ConnectionError after about KEEPALIVE_IDLE_S + KEEPALIVE_COUNT *
+# KEEPALIVE_INTERVAL_S, while a slow command that is answered - a home, a
+# slow dispense - is waited for as long as it takes. A read timeout could
+# not tell the two apart.
+KEEPALIVE_IDLE_S = 10
+KEEPALIVE_INTERVAL_S = 5
+KEEPALIVE_COUNT = 3
+
+
+def keepalive_options() -> list:
+    """The socket options that turn keep-alive on, as this platform has
+    them (Linux and Windows: TCP_KEEPIDLE; macOS: TCP_KEEPALIVE)."""
+    import socket
+    options = [(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)]
+    idle = getattr(socket, "TCP_KEEPIDLE", None) or getattr(
+        socket, "TCP_KEEPALIVE", None)
+    for name, value in ((idle, KEEPALIVE_IDLE_S),
+                        (getattr(socket, "TCP_KEEPINTVL", None),
+                         KEEPALIVE_INTERVAL_S),
+                        (getattr(socket, "TCP_KEEPCNT", None),
+                         KEEPALIVE_COUNT)):
+        if name is not None:
+            options.append((socket.IPPROTO_TCP, name, value))
+    return options
+
+
+class _KeepAliveAdapter(requests.adapters.HTTPAdapter):
+    def init_poolmanager(self, *args, **kwargs):
+        from urllib3.connection import HTTPConnection
+        kwargs["socket_options"] = (HTTPConnection.default_socket_options
+                                    + keepalive_options())
+        super().init_poolmanager(*args, **kwargs)
+
+
 class RobotHeld(RuntimeError):
     """A command refused because the robot is held (`OpentronsAPI.hold`)."""
 
@@ -127,13 +163,19 @@ class OpentronsAPI(Decorators):
         """`host` is the robot's address - an IP or a name, optionally with
         ":port" or as a whole URL. Without it, the OT2_HOST environment
         variable, else DEFAULT_HOST. `port` overrides the one in `host`.
-        `timeout` (seconds) applies to every request; None waits as long as
-        the robot takes, as before."""
+        `timeout` (seconds, or (connect, read) as `requests` takes it)
+        applies to every request; None waits as long as the robot takes, as
+        before. Every connection has TCP keep-alive (`keepalive_options`),
+        so a robot gone silent ends a wait however long the read."""
         address = host or os.environ.get(HOST_ENV) or DEFAULT_HOST
         self.host, parsed_port = parse_address(address)
         self.port = int(port) if port is not None else parsed_port
         self.BASE_URL = f"http://{self.host}:{self.port}"
         self.timeout = timeout
+        self.http = requests.Session()
+        adapter = _KeepAliveAdapter()
+        self.http.mount("http://", adapter)
+        self.http.mount("https://", adapter)
         # Per instance: run_id fills in the run's endpoints, and two clients
         # of two robots must not share them through the class.
         self.ENDPOINTS = dict(type(self).ENDPOINTS)
@@ -179,7 +221,7 @@ class OpentronsAPI(Decorators):
             refuse_if_stopped()
         url = self.get_url(endpoint_key)
 
-        r = requests.post(
+        r = self.http.post(
             url=url,
             headers=headers,
             params=params,
@@ -202,7 +244,7 @@ class OpentronsAPI(Decorators):
         """        
         url = self.get_url(endpoint_key)
 
-        r = requests.get(
+        r = self.http.get(
             url=url,
             headers=headers,
             timeout=self.timeout)
@@ -214,7 +256,7 @@ class OpentronsAPI(Decorators):
         rest - or raises: requests.ConnectionError / Timeout when nothing
         answers at this address, an Exception with the body otherwise.
         For checking an address before anything else is tried."""
-        r = requests.get(f"{self.BASE_URL}/health", headers=self.HEADERS,
+        r = self.http.get(f"{self.BASE_URL}/health", headers=self.HEADERS,
                          timeout=timeout)
         if r.status_code not in range(200, 300):
             raise Exception(r.text)
